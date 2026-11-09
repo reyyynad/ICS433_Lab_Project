@@ -19,16 +19,22 @@ typedef struct wv_tcb {
     ucontext_t     context;        /* saved CPU registers                        */
     void          *stack;          /* private stack, freed when thread ends     */
     size_t         stack_size;
+    int            vg_stack_id;    /* Valgrind stack registration (debugging only) */
     void          *retval;
     wv_tid_t       joiner;         /* thread waiting in wv_join, or -1          */
+    wv_func_t      entry;          /* thread function and its argument          */
+    void          *arg;
     struct wv_tcb *next;           /* link used by the ready and blocked queues */
     /* statistics (Bana reads these) */
     long           run_us, wait_us, switches;
 } wv_tcb_t;
 
 /* ---- Thread Manager (Renad) ---- */
-wv_tcb_t *tcb_current(void);
+int       thread_init_main(void);           /* TCB for the main thread (id 0)     */
+wv_tcb_t *tcb_current(void);                /* the running thread                 */
+void      tcb_set_current(wv_tcb_t *t);
 wv_tcb_t *tcb_lookup(wv_tid_t tid);
+void      thread_reap(void);                /* free the stack of a finished thread */
 
 /* ---- Context-switch layer (Renad) ---- */
 void ctx_switch(wv_tcb_t *from, wv_tcb_t *to);
