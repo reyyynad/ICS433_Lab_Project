@@ -106,6 +106,7 @@ int thread_init_main(void)
 static void thread_entry(void)
 {
     thread_reap();
+    sched_unlock();                            /* allow preemption in the new thread */
     wv_tcb_t *t = current;
     void *result = t->entry(t->arg);
     wv_exit(result);
@@ -120,13 +121,15 @@ wv_tid_t wv_create(wv_func_t func, void *arg, int priority)
 {
     if (current == NULL || func == NULL) return WV_ERR_INVALID;   /* wv_init not called */
 
+    sched_lock();                              /* no preemption while the table,    */
+                                               /* heap and ready queue are changed  */
     int id = find_free_slot();
-    if (id < 0) return WV_ERR_LIMIT;
+    if (id < 0) { sched_unlock(); return WV_ERR_LIMIT; }
 
     wv_tcb_t *t = calloc(1, sizeof *t);
-    if (t == NULL) return WV_ERR_NOMEM;
+    if (t == NULL) { sched_unlock(); return WV_ERR_NOMEM; }
     t->stack = malloc(STACK_SIZE);
-    if (t->stack == NULL) { free(t); return WV_ERR_NOMEM; }
+    if (t->stack == NULL) { free(t); sched_unlock(); return WV_ERR_NOMEM; }
 
     t->id = id;
     t->state = WV_NEW;
@@ -146,6 +149,7 @@ wv_tid_t wv_create(wv_func_t func, void *arg, int priority)
     table[id] = t;
     trace_event("created", id);
     sched_ready(t);                            /* NEW -> READY                      */
+    sched_unlock();
     return id;
 }
 
@@ -159,6 +163,8 @@ void wv_exit(void *retval)
     if (t == NULL) return;
     if (t->id == 0) exit(0);
 
+    sched_lock();                              /* never unlocked here: the next     */
+                                               /* thread unlocks after the switch   */
     t->retval = retval;
     t->state = WV_TERMINATED;
     trace_event("exited", t->id);
@@ -177,19 +183,25 @@ void wv_exit(void *retval)
  *           a thread that is already being joined. */
 int wv_join(wv_tid_t tid, void **retval)
 {
+    sched_lock();                              /* check and block as one step       */
     wv_tcb_t *self = current;
     wv_tcb_t *t = tcb_lookup(tid);
-    if (self == NULL || t == NULL || t == self || t->joiner >= 0) return WV_ERR_INVALID;
+    if (self == NULL || t == NULL || t == self || t->joiner >= 0) {
+        sched_unlock();
+        return WV_ERR_INVALID;
+    }
 
     if (t->state != WV_TERMINATED) {           /* block until the target exits      */
         t->joiner = self->id;
         trace_event("blocked (join)", self->id);
         sched_block(self);                     /* RUNNING -> BLOCKED                */
         sched_yield_to_next();
+        sched_lock();                          /* sched_yield_to_next unlocked it   */
     }
     if (retval != NULL) *retval = t->retval;
     table[tid] = NULL;                         /* the TCB is no longer needed       */
     free(t);
+    sched_unlock();
     return WV_OK;
 }
 
@@ -203,6 +215,7 @@ wv_tid_t wv_self(void)
 void wv_yield(void)
 {
     if (current == NULL) return;
-    sched_ready(current);
-    sched_yield_to_next();
+    sched_lock();                              /* the timer must not interrupt the  */
+    sched_ready(current);                      /* ready-queue update                */
+    sched_yield_to_next();                     /* unlocks when this thread resumes  */
 }
