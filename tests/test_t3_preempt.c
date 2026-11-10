@@ -46,7 +46,7 @@ static void *normal_worker(void *argument)
          * and allow this worker to execute.
          */
     }
-
+printf("A normal worker completed while the infinite-loop thread was running\n");
     finished_workers++;
     wv_exit(NULL);
 
@@ -69,7 +69,7 @@ int main(void)
         printf("T3 FAIL: wv_init failed\n");
         return 1;
     }
-
+wv_trace_enable(1);
     /*
      * This thread never yields. If timer preemption is not working,
      * the three normal workers will never finish.
