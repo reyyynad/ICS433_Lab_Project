@@ -45,9 +45,10 @@ int wv_sem_wait(wv_sem_t *s)
     }
 
     /* No unit: wait. wv_sem_post hands its unit to us before waking us. */
+    /* sched_block first: it may reset self->next, which the queue uses. */
+    sched_block(self);                         /* RUNNING -> BLOCKED            */
     waitq_push(&s->blocked_queue, self);
     trace_event("blocked (sem)", self->id);
-    sched_block(self);                         /* RUNNING -> BLOCKED            */
     sched_yield_to_next();
     sched_unlock();
     return WV_OK;
