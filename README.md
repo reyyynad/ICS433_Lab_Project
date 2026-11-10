@@ -6,7 +6,7 @@ Operating Systems Lab Project - Group #1, Section F62 (Phase 2: core implementat
 |---|---|---|
 | Renad Adel | Thread lifecycle and context switching | `src/thread.c`, `src/context.c`, tests T1-T2 |
 | Nada Alrobaian | Scheduler and preemption | `src/scheduler.c`, `src/timer.c`, tests T3-T4 |
-| Shatha Alharbi | Synchronization primitives | `src/mutex.c`, `src/semaphore.c`, tests T5, T6, T8 |
+| Shatha Alharbi | Synchronization primitives | `src/mutex.c`, `src/semaphore.c`, `src/waitq.c`, tests T5, T6, T8 |
 | Bana Jaber | Applications, testing and evaluation | `src/trace.c`, `apps/`, `bench/`, tests T7, T9 |
 
 ## Build and run

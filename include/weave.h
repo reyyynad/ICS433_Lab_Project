@@ -26,7 +26,12 @@ typedef enum { WV_NEW, WV_READY, WV_RUNNING, WV_BLOCKED, WV_TERMINATED } wv_stat
 #define WV_ERR_NOTOWNER (-5)   /* mutex unlocked by a thread that does not own it */
 #define WV_MAX_THREADS  1024
 
-/* ---- Synchronization objects (fields are filled in by Shatha) ------------- */
+/* ---- Synchronization objects (Shatha) --------------------------------------
+ * wv_mutex_t: locked = 1 while held, owner = ID of the holding thread (-1 if free),
+ *             blocked_queue = FIFO of threads waiting for the mutex.
+ * wv_sem_t  : value = number of free units, blocked_queue = FIFO of waiting threads.
+ * Always call wv_mutex_init / wv_sem_init before use. Never copy an object
+ * while threads are waiting on it. */
 typedef struct wv_mutex { int locked; wv_tid_t owner; void *blocked_queue; } wv_mutex_t;
 typedef struct wv_sem   { int value;  void *blocked_queue; }                 wv_sem_t;
 
