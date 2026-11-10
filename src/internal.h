@@ -47,6 +47,15 @@ void sched_wake(wv_tcb_t *t);               /* blocked -> ready                 
 void sched_lock(void);                      /* mask SIGVTALRM (critical section)  */
 void sched_unlock(void);                    /* unmask SIGVTALRM                   */
 
+/* ---- Synchronization wait queues (Shatha) ----
+ * FIFO queue of blocked threads, linked through wv_tcb_t.next. The queue is a
+ * circular list and is stored as one pointer to its LAST element (tail->next is
+ * the head), so it fits in the 'void *blocked_queue' field of wv_mutex_t and
+ * wv_sem_t and both operations are O(1). A blocked thread is never in the ready
+ * queue at the same time, so sharing the 'next' link is safe. */
+void      waitq_push(void **q, wv_tcb_t *t);  /* add t at the back of the queue */
+wv_tcb_t *waitq_pop(void **q);                 /* remove the front, or NULL      */
+
 /* ---- Tracing hooks (Bana) ---- */
 void trace_event(const char *what, wv_tid_t tid);
 
