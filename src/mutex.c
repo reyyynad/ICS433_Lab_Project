@@ -55,9 +55,10 @@ int wv_mutex_lock(wv_mutex_t *m)
 
     /* Taken: wait in FIFO order. wv_mutex_unlock makes us the owner before it
      * wakes us, so there is nothing to re-check after we run again. */
+    /* sched_block first: it may reset self->next, which the queue uses. */
+    sched_block(self);                         /* RUNNING -> BLOCKED            */
     waitq_push(&m->blocked_queue, self);
     trace_event("blocked (mutex)", self->id);
-    sched_block(self);                         /* RUNNING -> BLOCKED            */
     sched_yield_to_next();
     sched_unlock();
     return WV_OK;
