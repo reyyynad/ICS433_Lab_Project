@@ -1,68 +1,255 @@
 /* ============================================================================
  * Module   : Scheduler (scheduler.c)
  * Owner    : Nada Alrobaian
- * Purpose  : Ready queue, pluggable policy interface, Round Robin and Priority with aging.
+ * Purpose  : Ready queue, Round Robin scheduling and priority scheduling
+ *            with aging.
  * OS concepts : CPU scheduling, ready queue, starvation and aging
- * Project  : Weave - User-Level Thread Library (OS Lab Project, Group #1, F62)
+ * Project  : Weave - User-Level Thread Library
  * ========================================================================== */
 
-#include <stdio.h>
-#include <stdlib.h>
 #include "internal.h"
 
-/* ---- BASIC FIFO READY QUEUE -------------------------------------------------
- * Written by Renad so that threads can run and T1/T2 can be tested.
- * TODO (Nada): replace with the pluggable policy interface, Round Robin with a
- * time quantum and Priority with aging (see wv_init below and timer.c). */
-static wv_tcb_t *q_head = NULL, *q_tail = NULL;
+/* Active scheduling settings. */
+static wv_policy_t active_policy = WV_POLICY_RR;
+static int quantum_ms = 10;
 
-static void enqueue(wv_tcb_t *t)
+/* Ready queue pointers. */
+static wv_tcb_t *ready_head = NULL;
+static wv_tcb_t *ready_tail = NULL;
+
+/* Add a thread to the end of the ready queue. */
+static void ready_enqueue(wv_tcb_t *thread)
 {
-    t->next = NULL;
-    if (q_tail) q_tail->next = t; else q_head = t;
-    q_tail = t;
+    if (thread == NULL) {
+        return;
+    }
+
+    thread->next = NULL;
+
+    if (ready_tail == NULL) {
+        ready_head = thread;
+        ready_tail = thread;
+    } else {
+        ready_tail->next = thread;
+        ready_tail = thread;
+    }
 }
 
-static wv_tcb_t *dequeue(void)
+/* Remove and return the first thread in the ready queue. */
+static wv_tcb_t *ready_dequeue(void)
 {
-    wv_tcb_t *t = q_head;
-    if (t) { q_head = t->next; if (!q_head) q_tail = NULL; t->next = NULL; }
-    return t;
+    wv_tcb_t *thread;
+
+    thread = ready_head;
+
+    if (thread == NULL) {
+        return NULL;
+    }
+
+    ready_head = thread->next;
+
+    if (ready_head == NULL) {
+        ready_tail = NULL;
+    }
+
+    thread->next = NULL;
+    return thread;
 }
 
-/* Purpose : Start the library, choose the policy and time quantum.
- * Params  : policy - WV_POLICY_RR or WV_POLICY_PRIORITY; quantum_ms - time slice.
- * Returns : WV_OK or a negative WV_ERR_* code. */
-int wv_init(wv_policy_t policy, int quantum_ms)
+/*
+ * Increase the priority of waiting threads.
+ * This aging mechanism helps prevent starvation.
+ */
+static void age_ready_threads(void)
 {
-    (void)policy; (void)quantum_ms;
-    /* TODO (Nada): store the policy and quantum, start the virtual timer. */
-    return thread_init_main();                 /* TCB of the main thread (Renad)    */
+    wv_tcb_t *thread = ready_head;
+
+    while (thread != NULL) {
+        thread->priority++;
+        thread = thread->next;
+    }
 }
 
-/* Purpose : Put a thread in the ready queue (state READY). */
-void sched_ready(wv_tcb_t *t) { t->state = WV_READY; enqueue(t); }
+/* Remove and return the ready thread with the highest priority. */
+static wv_tcb_t *ready_remove_highest_priority(void)
+{
+    wv_tcb_t *best = NULL;
+    wv_tcb_t *best_previous = NULL;
+    wv_tcb_t *previous = NULL;
+    wv_tcb_t *current = ready_head;
 
-/* Purpose : Mark a thread BLOCKED. The queue it waits in belongs to the mutex,
- *           semaphore or joined thread. */
-void sched_block(wv_tcb_t *t) { t->state = WV_BLOCKED; }
+    while (current != NULL) {
+        if (best == NULL || current->priority > best->priority) {
+            best = current;
+            best_previous = previous;
+        }
 
-/* Purpose : Move a blocked thread back to the ready queue. */
-void sched_wake(wv_tcb_t *t)  { sched_ready(t); }
+        previous = current;
+        current = current->next;
+    }
 
-/* Purpose : Pick the next thread and switch to it. If no thread can run and the
- *           caller cannot continue, the program is deadlocked and ends. */
+    if (best == NULL) {
+        return NULL;
+    }
+
+    if (best_previous == NULL) {
+        ready_head = best->next;
+    } else {
+        best_previous->next = best->next;
+    }
+
+    if (best == ready_tail) {
+        ready_tail = best_previous;
+    }
+
+    best->next = NULL;
+    return best;
+}
+
+/*
+ * Purpose : Initialize the library and start the timer.
+ * Params  : policy - Round Robin or Priority scheduling.
+ *           new_quantum_ms - timer quantum in milliseconds.
+ * Returns : WV_OK or an error code.
+ */
+int wv_init(wv_policy_t policy, int new_quantum_ms)
+{
+    int result;
+
+    if (policy != WV_POLICY_RR &&
+        policy != WV_POLICY_PRIORITY) {
+        return WV_ERR_INVALID;
+    }
+
+    if (new_quantum_ms <= 0) {
+        return WV_ERR_INVALID;
+    }
+
+    active_policy = policy;
+    quantum_ms = new_quantum_ms;
+
+    ready_head = NULL;
+    ready_tail = NULL;
+
+    result = thread_init_main();
+
+    if (result != WV_OK) {
+        return result;
+    }
+
+    return timer_start(quantum_ms);
+}
+
+/*
+ * Purpose : Add a thread to the ready queue.
+ * Params  : thread - thread that is ready to run.
+ */
+void sched_ready(wv_tcb_t *thread)
+{
+    if (thread == NULL ||
+        thread->state == WV_TERMINATED) {
+        return;
+    }
+
+    thread->state = WV_READY;
+
+    /* Bana uses this event to calculate waiting time. */
+    trace_event("ready", thread->id);
+
+    ready_enqueue(thread);
+}
+
+/*
+ * Purpose : Mark a thread as blocked.
+ * Params  : thread - thread that is waiting for a resource.
+ */
+void sched_block(wv_tcb_t *thread)
+{
+    if (thread == NULL) {
+        return;
+    }
+
+    thread->state = WV_BLOCKED;
+    thread->next = NULL;
+
+    trace_event("blocked", thread->id);
+}
+
+/*
+ * Purpose : Wake a blocked thread and return it to the ready queue.
+ * Params  : thread - blocked thread to wake.
+ */
+void sched_wake(wv_tcb_t *thread)
+{
+    if (thread == NULL ||
+        thread->state == WV_TERMINATED) {
+        return;
+    }
+
+    sched_ready(thread);
+}
+
+/*
+ * Purpose : Select the next thread and switch to it.
+ *
+ * Round Robin:
+ * - Selects the first thread in the ready queue.
+ *
+ * Priority:
+ * - Ages waiting threads.
+ * - Selects the thread with the highest priority.
+ */
 void sched_yield_to_next(void)
 {
-    wv_tcb_t *cur  = tcb_current();
-    wv_tcb_t *next = dequeue();                /* TODO (Nada): ask the active policy */
+    wv_tcb_t *current;
+    wv_tcb_t *next;
 
-    if (next == NULL) {
-        if (cur->state == WV_RUNNING) return;  /* nobody else wants the CPU         */
-        fprintf(stderr, "[weave] deadlock: no runnable threads\n");
-        exit(1);
+    sched_lock();
+
+    current = tcb_current();
+
+    /*
+     * The current running thread becomes READY when its
+     * time quantum expires or when it voluntarily yields.
+     */
+    if (current != NULL &&
+        current->state == WV_RUNNING) {
+        sched_ready(current);
     }
+
+    if (active_policy == WV_POLICY_PRIORITY) {
+        age_ready_threads();
+        next = ready_remove_highest_priority();
+    } else {
+        next = ready_dequeue();
+    }
+
+    /*
+     * If no other thread is ready, continue running
+     * the current thread.
+     */
+    if (next == NULL) {
+        if (current != NULL &&
+            current->state == WV_READY) {
+            current->state = WV_RUNNING;
+        }
+
+        sched_unlock();
+        return;
+    }
+
     next->state = WV_RUNNING;
-    if (next == cur) return;                   /* yielded to ourselves              */
-    ctx_switch(cur, next);
+    trace_event("running", next->id);
+
+    /*
+     * Select the first thread if there is no current thread.
+     * Otherwise, use Renad's context-switch function.
+     */
+    if (current == NULL) {
+        tcb_set_current(next);
+    } else if (current != next) {
+        ctx_switch(current, next);
+    }
+
+    sched_unlock();
 }
