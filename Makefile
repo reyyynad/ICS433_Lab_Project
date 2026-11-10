@@ -24,7 +24,7 @@ build/app_%: apps/app_%.c build/libweave.a | build
 	$(CC) $(CFLAGS) $< build/libweave.a -o $@
 
 build/bench_%: bench/bench_%.c build/libweave.a | build
-	$(CC) $(CFLAGS) $< build/libweave.a -o $@
+	$(CC) $(CFLAGS) $< build/libweave.a -o $@ -pthread
 
 test: all
 	./tests/run_tests.sh
