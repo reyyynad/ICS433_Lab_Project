@@ -57,10 +57,11 @@ static wv_tcb_t *ready_dequeue(void)
 }
 
 /*
- * Increase the priority of waiting threads.
- * This aging mechanism helps prevent starvation.
+ * Give an extra priority boost to threads that were skipped.
+ * The selected thread has already been removed from the ready queue,
+ * so only waiting threads receive the aging increase.
  */
-static void age_ready_threads(void)
+static void age_waiting_threads(void)
 {
     wv_tcb_t *thread = ready_head;
 
@@ -69,7 +70,6 @@ static void age_ready_threads(void)
         thread = thread->next;
     }
 }
-
 /* Remove and return the ready thread with the highest priority. */
 static wv_tcb_t *ready_remove_highest_priority(void)
 {
