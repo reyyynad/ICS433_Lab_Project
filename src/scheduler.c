@@ -218,11 +218,19 @@ void sched_yield_to_next(void)
     }
 
     if (active_policy == WV_POLICY_PRIORITY) {
-        age_ready_threads();
-        next = ready_remove_highest_priority();
-    } else {
-        next = ready_dequeue();
-    }
+    /*
+     * First select the highest-priority thread.
+     * The selected thread is removed from the ready queue.
+     */
+    next = ready_remove_highest_priority();
+
+    /*
+     * Age only the threads that were skipped and remain waiting.
+     */
+    age_waiting_threads();
+} else {
+    next = ready_dequeue();
+}
 
     /*
      * If no other thread is ready, continue running
