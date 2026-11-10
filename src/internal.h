@@ -39,6 +39,9 @@ void      thread_reap(void);                /* free the stack of a finished thre
 /* ---- Context-switch layer (Renad) ---- */
 void ctx_switch(wv_tcb_t *from, wv_tcb_t *to);
 
+/* ---- Timer layer (Nada) ---- */
+int timer_start(int quantum_ms);
+
 /* ---- Scheduler (Nada) ---- */
 void sched_ready(wv_tcb_t *t);              /* put a thread in the ready queue    */
 void sched_block(wv_tcb_t *t);              /* move running thread to blocked     */
