@@ -30,7 +30,9 @@ static void *worker(void *arg)
 
 int main(int argc, char **argv)
 {
-    if (wv_init(WV_POLICY_RR, 10) != WV_OK) { printf("T2 FAIL: wv_init\n"); return 1; }
+    /* Long quantum: this test checks wv_yield only, so a timer tick must not
+     * reorder the threads (it did under Valgrind, which runs ~50x slower). */
+    if (wv_init(WV_POLICY_RR, 1000) != WV_OK) { printf("T2 FAIL: wv_init\n"); return 1; }
     if (argc > 1 && strcmp(argv[1], "--trace") == 0) wv_trace_enable(1);
 
     printf("T2 Cooperative yield: two threads, %d rounds each\n", ROUNDS);

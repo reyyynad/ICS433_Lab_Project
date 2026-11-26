@@ -117,7 +117,8 @@ int wv_init(wv_policy_t policy, int new_quantum_ms)
     int result;
 
     if (policy != WV_POLICY_RR &&
-        policy != WV_POLICY_PRIORITY) {
+        policy != WV_POLICY_PRIORITY &&
+        policy != WV_POLICY_PRIORITY_NOAGING) {
         return WV_ERR_INVALID;
     }
 
@@ -217,20 +218,25 @@ void sched_yield_to_next(void)
         sched_ready(current);
     }
 
-    if (active_policy == WV_POLICY_PRIORITY) {
-    /*
-     * First select the highest-priority thread.
-     * The selected thread is removed from the ready queue.
-     */
-    next = ready_remove_highest_priority();
+    if (active_policy == WV_POLICY_PRIORITY ||
+        active_policy == WV_POLICY_PRIORITY_NOAGING) {
+        /*
+         * First select the highest-priority thread.
+         * The selected thread is removed from the ready queue.
+         */
+        next = ready_remove_highest_priority();
 
-    /*
-     * Age only the threads that were skipped and remain waiting.
-     */
-    age_waiting_threads();
-} else {
-    next = ready_dequeue();
-}
+        /*
+         * Age only the threads that were skipped and remain waiting.
+         * WV_POLICY_PRIORITY_NOAGING skips this step so that starvation
+         * can be demonstrated (T4) and measured (bench_scale --policies).
+         */
+        if (active_policy == WV_POLICY_PRIORITY) {
+            age_waiting_threads();
+        }
+    } else {
+        next = ready_dequeue();
+    }
 
     /*
      * If no other thread is ready, continue running

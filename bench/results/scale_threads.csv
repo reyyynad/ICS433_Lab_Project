@@ -1,0 +1,13 @@
+policy,threads,switch_us
+rr,2,0.7651
+rr,8,0.7657
+rr,32,0.7691
+rr,128,0.7815
+rr,512,0.7967
+rr,1000,0.9004
+priority,2,0.7421
+priority,8,0.7912
+priority,32,0.9784
+priority,128,2.3086
+priority,512,10.6868
+priority,1000,19.9634

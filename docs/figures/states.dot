@@ -1,0 +1,13 @@
+digraph S {
+  graph [rankdir=LR, fontname="Liberation Sans", nodesep=0.6, ranksep=0.9, pad=0.2];
+  node [shape=box, style="rounded,filled", fontname="Liberation Sans", fontsize=12, fillcolor="#f2f2f2", color="#555555", width=1.3];
+  edge [fontname="Liberation Sans", fontsize=9, color="#555555", arrowsize=0.7];
+  NEW -> READY [label="wv_create"];
+  READY -> RUNNING [label="scheduler picks it\n(RR: head, Priority: highest)"];
+  RUNNING -> READY [label="wv_yield /\ntimer SIGVTALRM"];
+  RUNNING -> BLOCKED [label="mutex taken, sem = 0,\ncond_wait, join"];
+  BLOCKED -> READY [label="unlock / post /\nsignal / target exits"];
+  RUNNING -> TERMINATED [label="return / wv_exit"];
+  TERMINATED [fillcolor="#e0e0e0"];
+  RUNNING [fillcolor="#dbe9fb"];
+}

@@ -1,0 +1,13 @@
+policy,job,priority,service_ms,response_ms,turnaround_ms,waiting_ms
+rr,1,1,362.5,0.0,1006.6,644.2
+rr,2,2,271.8,12.4,954.6,682.8
+rr,3,3,181.2,20.4,703.0,521.8
+rr,4,4,90.6,32.4,409.9,319.3
+priority_aging,1,1,362.5,61.1,984.1,621.6
+priority_aging,2,2,271.8,33.1,838.2,566.4
+priority_aging,3,3,181.2,13.1,684.6,503.4
+priority_aging,4,4,90.6,0.0,296.8,206.1
+priority_no_aging,1,1,362.5,596.0,1000.7,638.2
+priority_no_aging,2,2,271.8,300.3,596.0,324.1
+priority_no_aging,3,3,181.2,102.3,300.2,119.0
+priority_no_aging,4,4,90.6,0.0,102.3,11.7

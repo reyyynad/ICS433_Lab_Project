@@ -1,0 +1,14 @@
+digraph P {
+  graph [rankdir=TB, fontname="Liberation Sans", nodesep=0.3, ranksep=0.28, pad=0.2];
+  node [shape=box, style="rounded,filled", fontname="Liberation Sans", fontsize=10, fillcolor="#f2f2f2", color="#555555", width=3.6];
+  edge [color="#555555", arrowsize=0.7, fontname="Liberation Sans", fontsize=9];
+  a [label="Thread A is RUNNING user code", fillcolor="#dbe9fb"];
+  b [label="Kernel: A has used one quantum of CPU time\n(ITIMER_VIRTUAL) → delivers SIGVTALRM"];
+  c [label="timer_handler() runs on A's stack\n(SIGVTALRM blocked while it runs)"];
+  d [label="sched_yield_to_next():\nA: RUNNING → READY, appended to the ready queue"];
+  e [label="Policy picks B\nRR: queue head · Priority: highest value, then age the rest"];
+  f [label="ctx_switch(A, B): swapcontext saves A's registers\nand signal mask, loads B's"];
+  g [label="B resumes where it stopped; thread_reap() frees\nthe stack of a finished thread; sched_unlock()", fillcolor="#dbe9fb"];
+  h [label="Later A is picked again: swapcontext returns inside\nA's handler, the handler returns, A continues"];
+  a -> b -> c -> d -> e -> f -> g -> h;
+}

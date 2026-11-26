@@ -1,7 +1,7 @@
 #!/bin/sh
 # Runs every test program in build/ and prints PASS / FAIL / TODO for each.
 pass=0; fail=0; todo=0
-for t in build/test_t*; do
+for t in $(ls build/test_t* | sort -V); do
   [ -x "$t" ] || continue
   "$t" >/dev/null 2>&1; rc=$?
   name=$(basename "$t")

@@ -66,10 +66,37 @@ int wv_sem_post(wv_sem_t *s)
     wv_tcb_t *next = waitq_pop(&s->blocked_queue);
     if (next != NULL) {                        /* hand the unit over            */
         sched_wake(next);                      /* BLOCKED -> READY              */
-        trace_event("ready", next->id);
     } else {
         s->value++;
     }
     sched_unlock();
     return WV_OK;
+}
+
+/* Purpose : Take one unit only if one is free; never blocks.
+ * Params  : s - the semaphore.
+ * Returns : WV_OK, WV_ERR_BUSY if value is 0, or WV_ERR_INVALID if s is NULL
+ *           or wv_init was not called. */
+int wv_sem_trywait(wv_sem_t *s)
+{
+    if (s == NULL || tcb_current() == NULL) return WV_ERR_INVALID;
+    sched_lock();
+    int rc = WV_ERR_BUSY;
+    if (s->value > 0) { s->value--; rc = WV_OK; }
+    sched_unlock();
+    return rc;
+}
+
+/* Purpose : Check that no thread is waiting on the semaphore and reset it.
+ * Params  : s - the semaphore.
+ * Returns : WV_OK, WV_ERR_INVALID if s is NULL, or WV_ERR_BUSY if threads are
+ *           still blocked on it. */
+int wv_sem_destroy(wv_sem_t *s)
+{
+    if (s == NULL) return WV_ERR_INVALID;
+    sched_lock();
+    int busy = s->blocked_queue != NULL;
+    if (!busy) s->value = 0;
+    sched_unlock();
+    return busy ? WV_ERR_BUSY : WV_OK;
 }
