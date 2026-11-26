@@ -40,7 +40,8 @@ void      thread_reap(void);                /* free the stack of a finished thre
 void ctx_switch(wv_tcb_t *from, wv_tcb_t *to);
 
 /* ---- Timer layer (Nada) ---- */
-int timer_start(int quantum_ms);
+int  timer_start(int quantum_ms);
+void timer_stop(void);                      /* disable preemption at exit       */
 
 /* ---- Scheduler (Nada) ---- */
 void sched_ready(wv_tcb_t *t);              /* put a thread in the ready queue    */
@@ -58,6 +59,10 @@ void sched_unlock(void);                    /* unmask SIGVTALRM                 
  * queue at the same time, so sharing the 'next' link is safe. */
 void      waitq_push(void **q, wv_tcb_t *t);  /* add t at the back of the queue */
 wv_tcb_t *waitq_pop(void **q);                 /* remove the front, or NULL      */
+
+/* Release a mutex the caller owns (hand it to the first waiter, or free it).
+ * The caller must hold sched_lock(). Used by wv_mutex_unlock and wv_cond_wait. */
+void      mutex_release_locked(wv_mutex_t *m);
 
 /* ---- Tracing hooks (Bana) ---- */
 void trace_event(const char *what, wv_tid_t tid);

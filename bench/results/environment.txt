@@ -1,0 +1,5 @@
+date: 2026-11-25 20:04 UTC
+Linux 6.18.44-fc-v880 x86_64
+model name	: Intel(R) Xeon(R) Processor @ 2.10GHz
+cpus: 2
+gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0

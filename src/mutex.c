@@ -64,6 +64,22 @@ int wv_mutex_lock(wv_mutex_t *m)
     return WV_OK;
 }
 
+/* Purpose : Give the mutex to the thread that waited longest, or free it if
+ *           nobody is waiting. Shared by wv_mutex_unlock and wv_cond_wait.
+ * Params  : m - a mutex owned by the calling thread.
+ * Note    : The caller must hold sched_lock(). */
+void mutex_release_locked(wv_mutex_t *m)
+{
+    wv_tcb_t *next = waitq_pop(&m->blocked_queue);
+    if (next != NULL) {                        /* hand ownership over           */
+        m->owner = next->id;                   /* m->locked stays 1             */
+        sched_wake(next);                      /* BLOCKED -> READY              */
+    } else {
+        m->locked = 0;
+        m->owner = -1;
+    }
+}
+
 /* Purpose : Unlock the mutex and wake one blocked thread.
  *           If threads are waiting, the one that waited longest becomes the new
  *           owner and is moved to the ready queue; otherwise the mutex is freed.
@@ -82,15 +98,44 @@ int wv_mutex_unlock(wv_mutex_t *m)
         return WV_ERR_NOTOWNER;
     }
 
-    wv_tcb_t *next = waitq_pop(&m->blocked_queue);
-    if (next != NULL) {                        /* hand ownership over           */
-        m->owner = next->id;                   /* m->locked stays 1             */
-        sched_wake(next);                      /* BLOCKED -> READY              */
-        trace_event("ready", next->id);
-    } else {
-        m->locked = 0;
-        m->owner = -1;
-    }
+    mutex_release_locked(m);
     sched_unlock();
     return WV_OK;
+}
+
+/* Purpose : Lock the mutex only if it is free; never blocks.
+ * Params  : m - the mutex.
+ * Returns : WV_OK (caller now owns m), WV_ERR_BUSY if another thread holds it,
+ *           or WV_ERR_INVALID if m is NULL, wv_init was not called, or the
+ *           caller already owns the mutex. */
+int wv_mutex_trylock(wv_mutex_t *m)
+{
+    wv_tcb_t *self = tcb_current();
+    if (m == NULL || self == NULL) return WV_ERR_INVALID;
+
+    sched_lock();
+    int rc;
+    if (!m->locked) {
+        m->locked = 1;
+        m->owner = self->id;
+        rc = WV_OK;
+    } else {
+        rc = (m->owner == self->id) ? WV_ERR_INVALID : WV_ERR_BUSY;
+    }
+    sched_unlock();
+    return rc;
+}
+
+/* Purpose : Check that a mutex is no longer in use and reset it.
+ * Params  : m - the mutex.
+ * Returns : WV_OK, WV_ERR_INVALID if m is NULL, or WV_ERR_BUSY if the mutex is
+ *           locked or threads are waiting on it (destroying it would strand them). */
+int wv_mutex_destroy(wv_mutex_t *m)
+{
+    if (m == NULL) return WV_ERR_INVALID;
+    sched_lock();
+    int busy = m->locked || m->blocked_queue != NULL;
+    if (!busy) { m->owner = -1; m->blocked_queue = NULL; }
+    sched_unlock();
+    return busy ? WV_ERR_BUSY : WV_OK;
 }

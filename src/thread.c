@@ -57,6 +57,7 @@ static int find_free_slot(void)
  *           Valgrind reports no memory leaks. The stack we are running on is skipped. */
 static void thread_cleanup(void)
 {
+    timer_stop();                       /* no timer tick may touch freed TCBs */
     for (int i = 0; i < WV_MAX_THREADS; i++) {
         wv_tcb_t *t = table[i];
         if (t == NULL || t == current) continue;

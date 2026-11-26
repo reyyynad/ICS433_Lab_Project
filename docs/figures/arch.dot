@@ -1,0 +1,19 @@
+digraph G {
+  graph [rankdir=TB, nodesep=0.35, ranksep=0.35, fontname="Liberation Sans", bgcolor="white", pad=0.2];
+  node [shape=box, style="rounded,filled", fontname="Liberation Sans", fontsize=11, color="#555555", fillcolor="#f2f2f2", penwidth=1.2];
+  edge [color="#555555", arrowsize=0.7, fontname="Liberation Sans"];
+  app [label=<<b>Application</b><br/><font point-size="9">tests T1-T11 · app_mixed · app_prodcons · app_workqueue · benchmarks</font>>, width=7.2];
+  api [label=<<b>Public API</b> (include/weave.h)<br/><font point-size="9">wv_init · wv_create · wv_yield · wv_exit · wv_join · wv_self · mutex · semaphore · condvar · trace</font>>, fillcolor="#dbe9fb", width=7.2];
+  subgraph cluster_m { style=invis;
+    tm [label=<<b>Thread Manager</b><br/><font point-size="9">thread.c<br/>TCB table, create, exit,<br/>join, stacks, reaping</font>>];
+    sc [label=<<b>Scheduler</b><br/><font point-size="9">scheduler.c · timer.c<br/>ready queue, RR, Priority+aging,<br/>SIGVTALRM, sched_lock</font>>];
+    sy [label=<<b>Synchronization Manager</b><br/><font point-size="9">mutex.c · semaphore.c · condvar.c<br/>waitq.c (FIFO wait queues)</font>>];
+  }
+  tr [label=<<b>Tracing and statistics</b> (trace.c)<br/><font point-size="9">µs timeline, run / wait / response time, switch count</font>>, width=7.2];
+  cx [label=<<b>Context-Switch Layer</b> (context.c)<br/><font point-size="9">getcontext · makecontext · swapcontext · one private stack per thread</font>>, width=7.2];
+  os [label=<<b>Linux</b>: ucontext, signals (SIGVTALRM), setitimer(ITIMER_VIRTUAL) — ONE kernel thread>, fillcolor="#e0e0e0", width=7.2];
+  app -> api; api -> tm; api -> sc; api -> sy;
+  sy -> sc [label=<<font point-size="8">block / wake</font>>, constraint=false];
+  tm -> sc [label=<<font point-size="8">ready / yield</font>>, constraint=false];
+  tm -> tr; sc -> tr; sy -> tr; tr -> cx [style=invis]; sc -> cx; tm -> cx; cx -> os;
+}

@@ -73,3 +73,14 @@ int timer_start(int quantum_ms)
 
     return WV_OK;
 }
+
+/* Purpose : Stop the virtual timer and keep SIGVTALRM blocked for good.
+ *           Called when the program exits, so that no preemption can happen
+ *           while the thread table is being freed (found with Valgrind in T3:
+ *           a timer tick during exit() used a TCB that had just been freed). */
+void timer_stop(void)
+{
+    struct itimerval off = { { 0, 0 }, { 0, 0 } };
+    sched_lock();
+    setitimer(ITIMER_VIRTUAL, &off, NULL);
+}

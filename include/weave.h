@@ -13,7 +13,8 @@
 typedef int wv_tid_t;                       /* thread identifier                 */
 typedef void *(*wv_func_t)(void *);         /* thread entry function             */
 
-typedef enum { WV_POLICY_RR = 0, WV_POLICY_PRIORITY = 1 } wv_policy_t;
+/* WV_POLICY_PRIORITY_NOAGING exists only to demonstrate starvation (T4, benchmarks). */
+typedef enum { WV_POLICY_RR = 0, WV_POLICY_PRIORITY = 1, WV_POLICY_PRIORITY_NOAGING = 2 } wv_policy_t;
 
 typedef enum { WV_NEW, WV_READY, WV_RUNNING, WV_BLOCKED, WV_TERMINATED } wv_state_t;
 
@@ -24,6 +25,7 @@ typedef enum { WV_NEW, WV_READY, WV_RUNNING, WV_BLOCKED, WV_TERMINATED } wv_stat
 #define WV_ERR_NOMEM    (-3)   /* stack or TCB allocation failed                */
 #define WV_ERR_LIMIT    (-4)   /* maximum number of threads exceeded            */
 #define WV_ERR_NOTOWNER (-5)   /* mutex unlocked by a thread that does not own it */
+#define WV_ERR_BUSY     (-6)   /* trylock/trywait would block, or object in use */
 #define WV_MAX_THREADS  1024
 
 /* ---- Synchronization objects (Shatha) --------------------------------------
@@ -34,6 +36,9 @@ typedef enum { WV_NEW, WV_READY, WV_RUNNING, WV_BLOCKED, WV_TERMINATED } wv_stat
  * while threads are waiting on it. */
 typedef struct wv_mutex { int locked; wv_tid_t owner; void *blocked_queue; } wv_mutex_t;
 typedef struct wv_sem   { int value;  void *blocked_queue; }                 wv_sem_t;
+/* wv_cond_t : blocked_queue = FIFO of threads waiting in wv_cond_wait.
+ *             Mesa semantics: a woken thread must re-check its condition in a loop. */
+typedef struct wv_cond  { void *blocked_queue; }                             wv_cond_t;
 
 /* ---- Thread lifecycle and scheduling API (Renad, Nada) -------------------- */
 int      wv_init(wv_policy_t policy, int quantum_ms);
@@ -50,6 +55,17 @@ int wv_mutex_unlock(wv_mutex_t *m);
 int wv_sem_init(wv_sem_t *s, int initial);
 int wv_sem_wait(wv_sem_t *s);
 int wv_sem_post(wv_sem_t *s);
+
+/* Final phase additions (Shatha): non-blocking variants, destroy, condition variables */
+int wv_mutex_trylock(wv_mutex_t *m);        /* WV_OK, or WV_ERR_BUSY if taken     */
+int wv_mutex_destroy(wv_mutex_t *m);        /* WV_ERR_BUSY if locked or waited on */
+int wv_sem_trywait(wv_sem_t *s);            /* WV_OK, or WV_ERR_BUSY if value 0   */
+int wv_sem_destroy(wv_sem_t *s);            /* WV_ERR_BUSY if threads are waiting */
+int wv_cond_init(wv_cond_t *c);
+int wv_cond_wait(wv_cond_t *c, wv_mutex_t *m);   /* caller must own m             */
+int wv_cond_signal(wv_cond_t *c);           /* wake the longest-waiting thread    */
+int wv_cond_broadcast(wv_cond_t *c);        /* wake every waiting thread          */
+int wv_cond_destroy(wv_cond_t *c);          /* WV_ERR_BUSY if threads are waiting */
 
 /* ---- Tracing and statistics API (Bana) ------------------------------------ */
 void wv_trace_enable(int on);               /* print every switch and state change */
